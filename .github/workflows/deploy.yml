@@ -2,19 +2,25 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [main]
+  workflow_dispatch: 
+
+# 1. 必须添加权限设置，否则机器人没法发布网页
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 2. 允许同时只能有一个部署任务，防止冲突
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Node.js
@@ -29,10 +35,20 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload artifact
+        # 这一步是把 dist 文件夹里的东西“打包”交给下一步
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: gh-pages
-          force_orphan: true
+          path: ./dist 
+
+  deploy:
+    # 这一步才是真正让 404 消失的操作
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
